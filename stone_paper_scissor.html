@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rock, Paper, Scissors - Enhanced</title>
+  <style>
+    /* Basic styles (same as before) */
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      transition: background-color 0.3s;
+    }
+    .dark-mode {
+      background-color: #2e2e2e;
+      color: white;
+    }
+    .light-mode {
+      background-color: #f4f4f4;
+      color: black;
+    }
+    .choices, .round-controls {
+      margin: 20px 0;
+    }
+    .choices button, .round-controls button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, background-color 0.2s;
+    }
+    .choices button:hover, .round-controls button:hover {
+      transform: scale(1.1);
+    }
+    .win {
+      background-color: #4caf50;
+      color: white;
+      animation: bounce 0.5s ease;
+    }
+    .lose {
+      background-color: #f44336;
+      color: white;
+      animation: shake 0.5s ease;
+    }
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+      }
+      40% {
+        transform: translateY(-20px);
+      }
+      60% {
+        transform: translateY(-10px);
+      }
+    }
+    @keyframes shake {
+      0%, 100% {
+        transform: translateX(0);
+      }
+      25% {
+        transform: translateX(-10px);
+      }
+      50% {
+        transform: translateX(10px);
+      }
+      75% {
+        transform: translateX(-10px);
+      }
+    }
+    .emoji {
+      position: absolute;
+      font-size: 50px;
+      animation: floatEmoji 2s ease-in-out;
+    }
+    @keyframes floatEmoji {
+      0% {
+        transform: translateY(0);
+      }
+      100% {
+        transform: translateY(-100px);
+        opacity: 0;
+      }
+    }
+    .score, .final-result, .theme-switcher {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    .score {
+      font-size: 20px;
+    }
+    .leaderboard {
+      margin-top: 40px;
+      font-size: 18px;
+    }
+    .leaderboard ul {
+      list-style: none;
+      padding: 0;
+    }
+    .leaderboard li {
+      margin: 5px 0;
+    }
+    .player-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin: 5px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body class="light-mode">
+  <h1>Rock, Paper, Scissors - Enhanced</h1>
+  <div class="round-controls">
+    <button onclick="startSinglePlayer()">Single Player</button>
+    <button onclick="startTwoPlayer()">Two Players</button>
+    <button onclick="toggleTheme()">Toggle Theme</button>
+  </div>
+  
+  <div class="choices" id="choices" style="display: none;">
+    <button onclick="playerMove('rock')" id="rockBtn">Rock</button>
+    <button onclick="playerMove('paper')" id="paperBtn">Paper</button>
+    <button onclick="playerMove('scissors')" id="scissorsBtn">Scissors</button>
+  </div>
+  
+  <div class="score" id="score"></div>
+  <div class="message" id="message"></div>
+  <div class="final-result" id="finalResult"></div>
+
+  <div class="leaderboard" id="leaderboard">
+    <h2>Leaderboard</h2>
+    <ul id="leaderboardList">
+      <!-- Leaderboard will be populated here -->
+    </ul>
+  </div>
+
+  <!-- Sound Effects -->
+  <audio id="clickSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+  <audio id="winSound" src="https://www.soundjay.com/button/beep-06.wav"></audio>
+  <audio id="loseSound" src="https://www.soundjay.com/button/beep-10.wav"></audio>
+  <audio id="themeSwitchSound" src="https://www.soundjay.com/button/beep-08b.wav"></audio>
+
+  <script>
+    let isTwoPlayer = false;
+    let player1Choice = null;
+    let player2Choice = null;
+    let player1Score = 0;
+    let player2Score = 0;
+    let computerScore = 0;
+    const maxRounds = 5;
+
+    // Leaderboard data
+    const leaderboard = [];
+
+    // Toggle Theme with sound effect
+    function toggleTheme() {
+      const body = document.body;
+      body.classList.toggle('dark-mode');
+      body.classList.toggle('light-mode');
+      playSound("themeSwitchSound");
+    }
+
+    // Start Game Modes
+    function startSinglePlayer() {
+      isTwoPlayer = false;
+      resetGame();
+      document.getElementById('choices').style.display = "block";
+    }
+
+    function startTwoPlayer() {
+      isTwoPlayer = true;
+      resetGame();
+      document.getElementById('choices').style.display = "block";
+    }
+
+    // Play sound effect by ID
+    function playSound(soundId) {
+      const sound = document.getElementById(soundId);
+      sound.currentTime = 0;
+      sound.play().catch(err => {
+        console.log("Error playing sound:", err);
+      });
+    }
+
+    // Player Move
+    function playerMove(choice) {
+      playSound("clickSound");
+      clearButtonEffects();
+
+      if (isTwoPlayer) {
+        if (!player1Choice) {
+          player1Choice = choice;
+          document.getElementById('message').textContent = "Player 2, make your choice!";
+        } else {
+          player2Choice = choice;
+          evaluateTwoPlayerRound();
+        }
+      } else {
+        evaluateSinglePlayerRound(choice);
+      }
+    }
+
+    // Evaluate Single Player Round
+    function evaluateSinglePlayerRound(playerChoice) {
+      const computerChoice = getComputerChoice();
+      let result = "";
+
+      if (playerChoice === computerChoice) {
+        result = `It's a tie! Both chose ${playerChoice}.`;
+        highlightButton(playerChoice, 'tie');
+      } else if (
+        (playerChoice === 'rock' && computerChoice === 'scissors') ||
+        (playerChoice === 'paper' && computerChoice === 'rock') ||
+        (playerChoice === 'scissors' && computerChoice === 'paper')
+      ) {
+        player1Score++;
+        playSound("winSound");
+        result = `You win! ${playerChoice} beats ${computerChoice}.`;
+        highlightButton(playerChoice, 'win');
+        showEmoji('win');
+      } else {
+        computerScore++;
+        playSound("loseSound");
+        result = `You lose! ${computerChoice} beats ${playerChoice}.`;
+        highlightButton(playerChoice, 'lose');
+        showEmoji('lose');
+      }
+
+      document.getElementById('message').textContent = result;
+      document.getElementById('score').textContent = `Score - You: ${player1Score}, Computer: ${computerScore}`;
+      checkGameOver();
+    }
+
+    // Evaluate Two Player Round
+    function evaluateTwoPlayerRound() {
+      let result = "";
+
+      if (player1Choice === player2Choice) {
+        result = `It's a tie! Both chose ${player1Choice}.`;
+        highlightButton(player1Choice, 'tie');
+      } else if (
+        (player1Choice === 'rock' && player2Choice === 'scissors') ||
+        (player1Choice === 'paper' && player2Choice === 'rock') ||
+        (player1Choice === 'scissors' && player2Choice === 'paper')
+      ) {
+        player1Score++;
+        playSound("winSound");
+        result = `Player 1 wins this round! ${player1Choice} beats ${player2Choice}.`;
+        highlightButton(player1Choice, 'win');
+        showEmoji('win');
+      } else {
+        player2Score++;
+        playSound("winSound");
+        result = `Player 2 wins this round! ${player2Choice} beats ${player1Choice}.`;
+        highlightButton(player2Choice, 'win');
+        showEmoji('lose');
+      }
+
+      document.getElementById('message').textContent = result;
+      document.getElementById('score').textContent = `Score - Player 1: ${player1Score}, Player 2: ${player2Score}`;
+      player1Choice = null;
+      player2Choice = null;
+
+      checkGameOver();
+    }
+
+    // Get Computer Choice
+    function getComputerChoice() {
+      const choices = ['rock', 'paper', 'scissors'];
+      return choices[Math.floor(Math.random() * choices.length)];
+    }
+
+    // Check Game Over
+    function checkGameOver() {
+      if (player1Score === maxRounds || player2Score === maxRounds || computerScore === maxRounds) {
+        const finalResultElement = document.getElementById('finalResult');
+        const buttons = document.querySelectorAll('.choices button');
+
+        if (player1Score === maxRounds) {
+          finalResultElement.textContent = "🎉 Player 1 Wins the Game! 🎉";
+        } else if (player2Score === maxRounds) {
+          finalResultElement.textContent = "🎉 Player 2 Wins the Game! 🎉";
+        } else {
+          finalResultElement.textContent = "😢 Computer Wins the Game! 😢";
+        }
+
+        buttons.forEach(button => button.disabled = true);
+
+        // Add to leaderboard
+        leaderboard.push({ player: 'Player 1', score: player1Score });
+        leaderboard.push({ player: 'Player 2', score: player2Score });
+        updateLeaderboard();
+
+        setTimeout(() => {
+          if (confirm("Game Over! Would you like to play again?")) {
+            resetGame();
+          }
+        }, 1000);
+      }
+    }
+
+    // Reset Game
+    function resetGame() {
+      player1Score = 0;
+      player2Score = 0;
+      computerScore = 0;
+      player1Choice = null;
+      player2Choice = null;
+
+      document.getElementById('message').textContent = "";
+      document.getElementById('score').textContent = "Score - Player 1: 0, Player 2: 0";
+      document.getElementById('finalResult').textContent = "";
+
+      const buttons = document.querySelectorAll('.choices button');
+      buttons.forEach(button => {
+        button.disabled = false;
+        button.classList.remove('win', 'lose', 'tie');
+      });
+    }
+
+    // Highlight Button
+    function highlightButton(choice, outcome) {
+      const buttonId = `${choice}Btn`;
+      const button = document.getElementById(buttonId);
+      button.classList.add(outcome);
+    }
+
+    // Show Emoji Effect
+    function showEmoji(result) {
+      const emoji = document.createElement('div');
+      emoji.classList.add('emoji');
+      emoji.textContent = result === 'win' ? '🎉' : '😢';
+      document.body.appendChild(emoji);
+
+      // Remove emoji after animation
+      setTimeout(() => emoji.remove(), 2000);
+    }
+
+    // Update Leaderboard
+    function updateLeaderboard() {
+      const leaderboardList = document.getElementById('leaderboardList');
+      leaderboardList.innerHTML = '';
+      leaderboard.sort((a, b) => b.score - a.score);  // Sort leaderboard by score
+
+      leaderboard.forEach(entry => {
+        const listItem = document.createElement('li');
+        listItem.textContent = `${entry.player}: ${entry.score}`;
+        leaderboardList.appendChild(listItem);
+      });
+    }
+
+    // Clear Button Effects
+    function clearButtonEffects() {
+      const buttons = document.querySelectorAll('.choices button');
+      buttons.forEach(button => button.classList.remove('win', 'lose', 'tie'));
+    }
+  </script>
+</body>
+</html>
